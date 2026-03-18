@@ -1,0 +1,52 @@
+if (req.method !== 'POST') return res.status(405).end()
+// Already have this ✓
+
+// Add this check:
+if (!req.body || Object.keys(req.body).length === 0) {
+  return res.status(400).json({ error: 'Request body required' })
+}
+
+export default async function handler(req, res) {
+  if (req.method !== 'POST') return res.status(405).end()
+
+  const { title, rationale } = req.body
+
+  const prompt = `You are a PM decision classifier. Classify this decision into exactly ONE category.
+
+Categories:
+- Prioritization: deciding what to build or defer
+- Trade-off: balancing competing constraints (speed vs quality, scope vs resources)
+- Stakeholder: decisions driven by stakeholder alignment or politics
+- Technical: architecture, tooling, or implementation choices
+- Scope: adding, cutting, or changing what's in a release
+
+Decision title: ${title}
+Rationale: ${rationale || 'Not provided'}
+
+Respond in JSON only, no markdown, no explanation:
+{"category": "...", "confidence": 0.0, "reasoning": "one sentence"}`
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': process.env.VITE_ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 200,
+      messages: [{ role: 'user', content: prompt }]
+    })
+  })
+
+  const data = await response.json()
+  const text = data.content[0].text.trim()
+
+  try {
+    const parsed = JSON.parse(text)
+    res.status(200).json(parsed)
+  } catch {
+    res.status(200).json({ category: 'Trade-off', confidence: 0.5, reasoning: 'Could not parse' })
+  }
+}
