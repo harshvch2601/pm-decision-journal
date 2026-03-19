@@ -1,11 +1,3 @@
-if (req.method !== 'POST') return res.status(405).end()
-// Already have this ✓
-
-// Add this check:
-if (!req.body || Object.keys(req.body).length === 0) {
-  return res.status(400).json({ error: 'Request body required' })
-}
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
