@@ -4,7 +4,7 @@ import StatsCard from '../components/StatsCard'
 import InsightsPanel from '../components/InsightsPanel'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  ScatterChart, Scatter, CartesianGrid,
+  ScatterChart, Scatter, CartesianGrid, ReferenceLine
 } from 'recharts'
 
 const CATEGORY_COLORS = {
@@ -107,21 +107,72 @@ export default function AnalyticsDashboard() {
 
       {calibrationData.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-100 p-6">
-          <h3 className="font-semibold text-gray-900 text-sm mb-1">Confidence Calibration</h3>
-          <p className="text-xs text-gray-400 mb-4">Are your confident decisions actually more accurate?</p>
-          <ResponsiveContainer width="100%" height={220}>
-            <ScatterChart margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="confidence" name="Confidence" domain={[0, 6]} tick={{ fontSize: 11 }} />
-              <YAxis dataKey="accuracy" name="Accuracy" domain={[0, 6]} tick={{ fontSize: 11 }} />
-              <Tooltip
-                contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                formatter={(val, name) => [`${val}/5`, name]}
-              />
-              <Scatter data={calibrationData} fill="#8b5cf6" opacity={0.7} />
-            </ScatterChart>
-          </ResponsiveContainer>
-        </div>
+  <h3 className="font-semibold text-gray-900 text-sm mb-1">
+    Confidence vs Actual Accuracy
+  </h3>
+  <p className="text-xs text-gray-400 mb-1">
+    Each dot = one reviewed decision. Are you more accurate when you're more confident?
+  </p>
+  <div className="flex items-center gap-4 mb-4">
+    <div className="flex items-center gap-1.5">
+      <div className="w-3 h-3 rounded-full bg-purple-400 opacity-70" />
+      <span className="text-xs text-gray-400">One decision</span>
+    </div>
+    <div className="text-xs text-gray-400">
+      X axis = your confidence when you made the call (1–5)
+    </div>
+    <div className="text-xs text-gray-400">
+      Y axis = Claude's accuracy score 30/60/90 days later (1–5)
+    </div>
+  </div>
+  <ResponsiveContainer width="100%" height={220}>
+    <ScatterChart margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
+      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+      <XAxis
+        dataKey="confidence"
+        name="Confidence"
+        type="number"
+        domain={[0.5, 5.5]}
+        ticks={[1, 2, 3, 4, 5]}
+        tick={{ fontSize: 11 }}
+        label={{
+          value: '← Less confident   Confidence when decided   More confident →',
+          position: 'insideBottom',
+          offset: -12,
+          fontSize: 10,
+          fill: '#9ca3af'
+        }}
+      />
+      <YAxis
+        dataKey="accuracy"
+        name="Accuracy"
+        type="number"
+        domain={[0.5, 5.5]}
+        ticks={[1, 2, 3, 4, 5]}
+        tick={{ fontSize: 11 }}
+        label={{
+          value: 'Accuracy',
+          angle: -90,
+          position: 'insideLeft',
+          offset: 10,
+          fontSize: 10,
+          fill: '#9ca3af'
+        }}
+      />
+      <Tooltip
+        contentStyle={{ fontSize: 12, borderRadius: 8 }}
+        formatter={(val, name) => [`${val}/5`, name === 'confidence' ? 'Confidence' : 'Accuracy']}
+        labelFormatter={() => ''}
+      />
+      <Scatter data={calibrationData} fill="#8b5cf6" opacity={0.7} r={7} />
+    </ScatterChart>
+  </ResponsiveContainer>
+  <div className="flex justify-between text-xs text-gray-300 px-8 mt-1">
+    <span>1 = Completely wrong</span>
+    <span>3 = Partially right</span>
+    <span>5 = Spot on</span>
+  </div>
+</div>
       )}
 
       {reviewed.length === 0 && (

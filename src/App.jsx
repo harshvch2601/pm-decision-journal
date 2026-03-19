@@ -3,17 +3,17 @@ import { supabase } from './lib/supabaseClient'
 import { identifyUser, resetUser } from './lib/analytics'
 import Auth from './pages/Auth'
 import Dashboard from './pages/Dashboard'
+import DemoWrapper from './pages/DemoWrapper'
 
 function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [isDemo, setIsDemo] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
-      if (session?.user) {
-        identifyUser(session.user.id, session.user.email)
-      }
+      if (session?.user) identifyUser(session.user.id, session.user.email)
       setLoading(false)
     })
 
@@ -22,12 +22,12 @@ function App() {
         setSession(session)
         if (session?.user) {
           identifyUser(session.user.id, session.user.email)
+          setIsDemo(false)
         } else {
           resetUser()
         }
       }
     )
-
     return () => subscription.unsubscribe()
   }, [])
 
@@ -37,7 +37,9 @@ function App() {
     </div>
   )
 
-  return session ? <Dashboard session={session} /> : <Auth />
+  if (session) return <Dashboard session={session} />
+  if (isDemo) return <DemoWrapper onSignUp={() => setIsDemo(false)} />
+  return <Auth onDemo={() => setIsDemo(true)} />
 }
 
 export default App
