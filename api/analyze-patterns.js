@@ -7,23 +7,26 @@ if (!req.body || Object.keys(req.body).length === 0) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).end()
-
-  const { decisions } = req.body
-
-  if (!decisions || decisions.length < 3) {
-    return res.status(200).json({
-      blindSpots: ['Log at least 3 reviewed decisions to unlock pattern analysis.'],
-      strengths: [],
-      summary: 'Not enough data yet.'
-    })
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  const decisionSummary = decisions.map((d, i) =>
-    `${i + 1}. [${d.category}] "${d.title}" — confidence: ${d.confidence}/5, accuracy: ${d.accuracy_score}/5, outcome: ${d.outcome_rating}`
-  ).join('\n')
+  try {
+    const { decisions } = req.body
 
-  const prompt = `You are analyzing a PM's decision-making patterns based on their tracked decisions and outcomes.
+    if (!decisions || decisions.length < 3) {
+      return res.status(200).json({
+        blindSpots: ['Log at least 3 reviewed decisions to unlock pattern analysis.'],
+        strengths: [],
+        summary: 'Not enough data yet.'
+      })
+    }
+
+    const decisionSummary = decisions.map((d, i) =>
+      `${i + 1}. [${d.category}] "${d.title}" — confidence: ${d.confidence}/5, accuracy: ${d.accuracy_score}/5, outcome: ${d.outcome_rating}`
+    ).join('\n')
+
+    const prompt = `You are analyzing a PM's decision-making patterns based on their tracked decisions and outcomes.
 
 Here are their decisions with outcomes:
 ${decisionSummary}
@@ -40,31 +43,51 @@ Respond in JSON only, no markdown:
   "summary": "two sentences"
 }`
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 400,
-      messages: [{ role: 'user', content: prompt }]
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-5',
+        max_tokens: 400,
+        messages: [{ role: 'user', content: prompt }]
+      })
     })
-  })
 
-  const data = await response.json()
-  const text = data.content[0].text.trim()
+    if (!response.ok) {
+      const errText = await response.text()
+      console.error('Anthropic API error:', response.status, errText)
+      return res.status(200).json({
+        blindSpots: ['Could not analyze patterns right now.'],
+        strengths: [],
+        summary: 'Try again in a moment.'
+      })
+    }
 
-  try {
-    const parsed = JSON.parse(text)
-    res.status(200).json(parsed)
-  } catch {
-    res.status(200).json({
-      blindSpots: ['Could not analyze patterns yet.'],
+    const data = await response.json()
+    const text = data.content?.[0]?.text?.trim() || ''
+
+    try {
+      const clean = text.replace(/```json|```/g, '').trim()
+      const parsed = JSON.parse(clean)
+      return res.status(200).json(parsed)
+    } catch {
+      return res.status(200).json({
+        blindSpots: ['Could not analyze patterns yet.'],
+        strengths: [],
+        summary: 'Log more decisions with outcomes to unlock insights.'
+      })
+    }
+
+  } catch (err) {
+    console.error('Handler error:', err)
+    return res.status(200).json({
+      blindSpots: ['Error analyzing patterns.'],
       strengths: [],
-      summary: 'Log more decisions with outcomes to unlock insights.'
+      summary: 'Something went wrong. Try again.'
     })
   }
 }

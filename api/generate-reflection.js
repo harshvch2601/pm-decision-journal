@@ -7,19 +7,26 @@ if (!req.body || Object.keys(req.body).length === 0) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).end()
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
 
-  const { title, expectedOutcome, category, rationale, reviewWindow } = req.body
+  try {
+    const { title, expectedOutcome, category, rationale, reviewWindow } = req.body
 
-  const prompt = `You are a PM coach helping a product manager reflect on a past decision.
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' })
+    }
 
-They made this decision ${reviewWindow} days ago:
+    const prompt = `You are a PM coach helping a product manager reflect on a past decision.
+
+They made this decision ${reviewWindow || 30} days ago:
 Title: ${title}
-Category: ${category}
+Category: ${category || 'Unknown'}
 Their rationale: ${rationale || 'Not provided'}
 They expected: ${expectedOutcome || 'Not specified'}
 
-Generate ONE specific, thought-provoking reflection question to help them honestly assess what actually happened. 
+Generate ONE specific, thought-provoking reflection question to help them honestly assess what actually happened.
 - Make it specific to their decision, not generic
 - Challenge their assumptions gently
 - Keep it under 45 words
@@ -27,20 +34,38 @@ Generate ONE specific, thought-provoking reflection question to help them honest
 
 Return plain text only, no quotes, no JSON.`
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': process.env.VITE_ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 150,
-      messages: [{ role: 'user', content: prompt }]
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-4-5',
+        max_tokens: 150,
+        messages: [{ role: 'user', content: prompt }]
+      })
     })
-  })
 
-  const data = await response.json()
-  res.status(200).json({ reflection: data.content[0].text.trim() })
+    if (!response.ok) {
+      const errText = await response.text()
+      console.error('Anthropic API error:', response.status, errText)
+      return res.status(200).json({
+        reflection: 'What actually happened, and how does it compare to what you expected?'
+      })
+    }
+
+    const data = await response.json()
+    const reflection = data.content?.[0]?.text?.trim() ||
+      'What actually happened, and how does it compare to what you expected?'
+
+    return res.status(200).json({ reflection })
+
+  } catch (err) {
+    console.error('Handler error:', err)
+    return res.status(200).json({
+      reflection: 'What actually happened, and how does it compare to what you expected?'
+    })
+  }
 }
